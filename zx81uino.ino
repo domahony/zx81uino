@@ -56,12 +56,53 @@ void setup()
   mcp1.begin(0x0);
   mcp2.begin(0x1);
   
+  setBusMode(ADDRESSBUS, 13, INPUT);
+  setBusMode(DATABUS, 8, INPUT);  
   
+  pinMode(clockPin, OUTPUT);
 }
 
 void loop()  
 {
     
+}
+
+void setBusMode(struct MPin *a, int n, int mode)
+{
+  for (int i = 0; i < n; i++) {
+    a[i].mcp->pinMode(a[i].pin, mode);
+  }
+}
+
+void writePinArray(struct MPin *a, int n)
+{
+  int val = 0;
+ 
+  for (int i = n - 1; i >= 0; i--) {
+    boolean pval = (a[i].mcp->digitalRead(a[i].pin) != 0);
+    Serial.print(pval ? "1" : "0");
+    val |= (pval << i);
+  }
+  
+  Serial.print(" "); Serial.print(val); Serial.print(" ");
+  Serial.println(""); 
+}
+
+void writeBusState()
+{
+  Serial.print("Address: ");
+  writePinArray(ADDRESSBUS, 13);
+  
+  Serial.print("Data: ");
+  writePinArray(DATABUS, 8);
+  
+}
+
+void tick()
+{
+ digitalWrite(clockPin, HIGH);
+ delay(1000);
+ digitalWrite(clockPin, LOW);
 }
     
 void serialEvent() {
@@ -73,6 +114,9 @@ void serialEvent() {
   switch (cmd) {
   case 'c':
     Serial.println("Executing Clock");
+    writeBusState();
+    tick();
+    writeBusState();
     break;
   default:
     break;
