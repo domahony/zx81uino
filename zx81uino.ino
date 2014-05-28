@@ -6,26 +6,39 @@ Adafruit_MCP23017 mcp2;
 
 struct MPin {
   MPin(Adafruit_MCP23017 *m, int p) : mcp(m), pin(p) {}
+
+  void pinMode(int mode) {
+    mcp->pinMode(pin, mode);
+  }
+  
+  
+  bool digitalRead() {
+    return mcp->digitalRead(pin);
+  }
+  
+  void digitalWrite(bool value) {
+    mcp->digitalWrite(pin, value);
+  }
   
   Adafruit_MCP23017 *mcp;
   int pin;
 };
 
 MPin DATABUS[8] = {
-  MPin(&mcp1, 8),
-  MPin(&mcp1, 9),
-  MPin(&mcp1, 10),
-  MPin(&mcp1, 11),
-  MPin(&mcp1, 12),
-  MPin(&mcp1, 13),
-  MPin(&mcp1, 14),
-  MPin(&mcp1, 15),
+  MPin(&mcp1, 0),
+  MPin(&mcp1, 1),
+  MPin(&mcp1, 2),
+  MPin(&mcp1, 3),
+  MPin(&mcp1, 4),
+  MPin(&mcp1, 5),
+  MPin(&mcp1, 6),
+  MPin(&mcp1, 7),
 };
 
 MPin ADDRESSBUS[13] = {
+  MPin(&mcp2, 12),
+  MPin(&mcp2, 11),
   MPin(&mcp2, 10),
-  MPin(&mcp2, 9),
-  MPin(&mcp2, 8),
   MPin(&mcp2, 0),  
   MPin(&mcp2, 1),
   MPin(&mcp2, 2),
@@ -34,20 +47,23 @@ MPin ADDRESSBUS[13] = {
   MPin(&mcp2, 5),  
   MPin(&mcp2, 6),  
   MPin(&mcp2, 7),
-  MPin(&mcp2, 11),  
-  MPin(&mcp2, 12),    
+  MPin(&mcp2, 8),  
+  MPin(&mcp2, 9),    
 };
 
-MPin M1(&mcp1, 0);
-MPin RESET(&mcp1, 1);
-MPin WR(&mcp1, 2);
-MPin RD(&mcp1, 3);
-MPin NMI(&mcp1, 5);
-MPin MREQ(&mcp1, 6);
-MPin IORQ(&mcp1, 7);
+MPin M1(&mcp1, 9);
+MPin RESET(&mcp1, 8);
+MPin WR(&mcp1, 10);
+MPin RD(&mcp1, 11);
+MPin NMI(&mcp1, 12);
+MPin MREQ(&mcp1, 13);
+MPin IORQ(&mcp1, 14);
+MPin LED(&mcp1, 15);
 
 
 int clockPin = 2;
+int cePin = 6;
+int oePin = 8; 
 
 void setup()
 {
@@ -60,6 +76,20 @@ void setup()
   setBusMode(DATABUS, 8, INPUT);  
   
   pinMode(clockPin, OUTPUT);
+  
+  M1.pinMode(INPUT);
+  RESET.pinMode(OUTPUT);
+  WR.pinMode(INPUT);
+  RD.pinMode(INPUT);
+  NMI.pinMode(OUTPUT);
+  MREQ.pinMode(INPUT);
+  IORQ.pinMode(INPUT);
+  LED.pinMode(OUTPUT); 
+ 
+  RESET.digitalWrite(HIGH); 
+  NMI.digitalWrite(HIGH);
+  
+  reset();
 }
 
 void loop()  
@@ -70,7 +100,7 @@ void loop()
 void setBusMode(struct MPin *a, int n, int mode)
 {
   for (int i = 0; i < n; i++) {
-    a[i].mcp->pinMode(a[i].pin, mode);
+    a[i].pinMode(mode);
   }
 }
 
@@ -79,13 +109,25 @@ void writePinArray(struct MPin *a, int n)
   int val = 0;
  
   for (int i = n - 1; i >= 0; i--) {
-    boolean pval = (a[i].mcp->digitalRead(a[i].pin) != 0);
+    boolean pval = (a[i].digitalRead() != 0);
     Serial.print(pval ? "1" : "0");
     val |= (pval << i);
   }
   
-  Serial.print(" "); Serial.print(val); Serial.print(" ");
+  Serial.print(" "); Serial.print(val, HEX); Serial.print(" ");
   Serial.println(""); 
+}
+
+int readBus(struct MPin *a, int n)
+{
+  int val = 0;
+ 
+  for (int i = n - 1; i >= 0; i--) {
+    boolean pval = (a[i].digitalRead() != 0);
+    val |= (pval << i);
+  }
+  
+  return val;
 }
 
 void writeBusState()
@@ -98,11 +140,89 @@ void writeBusState()
   
 }
 
-void tick()
+void pinVal(MPin* p, String s)
+{
+  Serial.print(s); Serial.print(": "); Serial.print(p->digitalRead()); Serial.print(" ");  
+}
+
+void writePinState()
+{
+  pinVal(&M1, "M1");
+  pinVal(&WR, "WR");
+  pinVal(&RD, "RD");
+  pinVal(&MREQ, "MREQ");
+  pinVal(&IORQ, "IORQ");
+  Serial.println("");  
+}
+
+void tick(int *data, int *addr)
 {
  digitalWrite(clockPin, HIGH);
- delay(1000);
+ LED.digitalWrite(HIGH);
+ writePinState();
+ delay(100);
+ LED.digitalWrite(LOW);
+ *data = readBus(DATABUS, 8);
+ *addr = readBus(ADDRESSBUS, 13);
+ writePinState();
+ writeBusState();
  digitalWrite(clockPin, LOW);
+ delay(100);
+
+}
+
+void memRead(int addr)
+{
+  pinMode(cePin, OUTPUT);
+  pinMode(oePin, OUTPUT);
+  
+  digitalWrite(cePin, HIGH);
+  digitalWrite(oePin, HIGH);
+  for (int i = 0; i < 13; i++) {
+    ADDRESSBUS[i].mcp->pinMode(ADDRESSBUS[i].pin, OUTPUT);
+    ADDRESSBUS[i].digitalWrite((addr >> i) & 0x1);
+  }
+  
+  digitalWrite(cePin, LOW);
+  digitalWrite(oePin, LOW);
+  
+  pinMode(cePin, INPUT);
+  pinMode(oePin, INPUT);
+  writeBusState();
+
+  for (int i = 0; i < 13; i++) {
+    ADDRESSBUS[i].mcp->pinMode(ADDRESSBUS[i].pin, INPUT);
+  }    
+}
+
+void reset()
+{
+  int data, addr;
+  RESET.digitalWrite(LOW);
+  tick(&data, &addr);
+  tick(&data, &addr);
+  tick(&data, &addr);
+  tick(&data, &addr);
+  tick(&data, &addr);
+  tick(&data, &addr);
+  tick(&data, &addr);
+  RESET.digitalWrite(HIGH);  
+}
+
+void readMemLocation()
+{
+  char buf[5];
+  
+  
+  Serial.setTimeout(60 * 1000);
+  int nread = Serial.readBytesUntil('\n', buf, 5);
+  buf[nread] = 0;
+  
+  int n = atoi(buf);
+  
+  memRead(n);
+  
+  Serial.println(n, HEX);
 }
     
 void serialEvent() {
@@ -110,16 +230,53 @@ void serialEvent() {
   char cmd;
   
   cmd = Serial.read();
+  Serial.flush();
   
+  int data, addr;
   switch (cmd) {
   case 'c':
     Serial.println("Executing Clock");
-    writeBusState();
-    tick();
-    writeBusState();
+    tick(&data, &addr);
+    break;
+  case 'r':
+    reset();
+    break;
+  case 'n':
+    readMemLocation();
+    break;
+  case 'f':
+    readNextOpCode();
     break;
   default:
+    Serial.print("Ignored "); Serial.println(cmd);
     break;
   }
-  Serial.flush();
+}
+
+int readNextOpCode()
+{
+    int op, addr;
+    findNextOpCode(&op, &addr);
+    Serial.print("Found OP: "); Serial.print(op, HEX); Serial.print(" at "); Serial.println(addr, HEX);
+  
+}
+
+int findNextOpCode(int *cmd, int* addr)
+{
+  int c, a;
+  while (1) {
+    if (!M1.digitalRead()) { 
+      while (1) {
+         if (!MREQ.digitalRead()) {
+           *addr = a;
+           *cmd = c;  
+         }
+         tick(&c, &a);
+        if (M1.digitalRead()) {
+         return 1;       
+        }
+      }
+    }
+    tick(&c, &a);
+  }
 }
