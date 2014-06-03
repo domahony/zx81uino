@@ -35,7 +35,7 @@ MPin DATABUS[8] = {
   MPin(&mcp1, 7),
 };
 
-MPin ADDRESSBUS[13] = {
+MPin ADDRESSBUS[16] = {
   MPin(&mcp2, 12),
   MPin(&mcp2, 11),
   MPin(&mcp2, 10),
@@ -49,6 +49,9 @@ MPin ADDRESSBUS[13] = {
   MPin(&mcp2, 7),
   MPin(&mcp2, 8),  
   MPin(&mcp2, 9),    
+  MPin(&mcp2, 15),  
+  MPin(&mcp2, 14),  
+  MPin(&mcp2, 13),  
 };
 
 MPin M1(&mcp1, 9);
@@ -59,7 +62,6 @@ MPin NMI(&mcp1, 12);
 MPin MREQ(&mcp1, 13);
 MPin IORQ(&mcp1, 14);
 MPin LED(&mcp1, 15);
-
 
 int clockPin = 2;
 int cePin = 6;
@@ -94,7 +96,7 @@ void setup()
 
 void loop()  
 {
-    
+	delayMicroseconds(4);
 }
 
 void setBusMode(struct MPin *a, int n, int mode)
