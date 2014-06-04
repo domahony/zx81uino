@@ -74,7 +74,7 @@ void setup()
   mcp1.begin(0x0);
   mcp2.begin(0x1);
   
-  setBusMode(ADDRESSBUS, 13, INPUT);
+  setBusMode(ADDRESSBUS, 16, INPUT);
   setBusMode(DATABUS, 8, INPUT);  
   
   pinMode(clockPin, OUTPUT);
@@ -135,7 +135,7 @@ int readBus(struct MPin *a, int n)
 void writeBusState()
 {
   Serial.print("Address: ");
-  writePinArray(ADDRESSBUS, 13);
+  writePinArray(ADDRESSBUS, 16);
   
   Serial.print("Data: ");
   writePinArray(DATABUS, 8);
@@ -165,7 +165,7 @@ void tick(int *data, int *addr)
  delay(100);
  LED.digitalWrite(LOW);
  *data = readBus(DATABUS, 8);
- *addr = readBus(ADDRESSBUS, 13);
+ *addr = readBus(ADDRESSBUS, 16);
  writePinState();
  writeBusState();
  digitalWrite(clockPin, LOW);
