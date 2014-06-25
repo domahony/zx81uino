@@ -66,6 +66,7 @@ MPin LED(&mcp1, 15);
 int clockPin = 2;
 int cePin = 6;
 int oePin = 8; 
+int memCE = 12;
 
 void setup()
 {
@@ -77,6 +78,7 @@ void setup()
   setBusMode(ADDRESSBUS, 16, INPUT);
   setBusMode(DATABUS, 8, INPUT);  
   
+  pinMode(memCE, OUTPUT);
   pinMode(clockPin, OUTPUT);
   
   M1.pinMode(INPUT);
@@ -90,6 +92,8 @@ void setup()
  
   RESET.digitalWrite(HIGH); 
   NMI.digitalWrite(HIGH);
+  
+  digitalWrite(memCE, HIGH);
   
   reset();
 }
@@ -159,16 +163,30 @@ void writePinState()
 
 void tick(int *data, int *addr)
 {
+
+ bool prevM1 = M1.digitalRead();
+ bool prevMREQ = MREQ.digitalRead();
+ 
  digitalWrite(clockPin, HIGH);
  LED.digitalWrite(HIGH);
- writePinState();
+ enableMemChip();
  delay(100);
- LED.digitalWrite(LOW);
+ 
+ if (!prevM1 && !prevMREQ && M1.digitalRead() && MREQ.digitalRead()) {
+   Serial.println("Data is the current opcode");
+ }
+ 
  *data = readBus(DATABUS, 8);
  *addr = readBus(ADDRESSBUS, 16);
  writePinState();
  writeBusState();
  digitalWrite(clockPin, LOW);
+ writePinState();
+ writeBusState();
+ LED.digitalWrite(LOW);
+ 
+ 
+ enableMemChip();
  delay(100);
 
 }
@@ -209,6 +227,16 @@ void reset()
   tick(&data, &addr);
   tick(&data, &addr);
   RESET.digitalWrite(HIGH);  
+}
+
+
+void enableMemChip()
+{
+  if (ADDRESSBUS[13].digitalRead() || ADDRESSBUS[14].digitalRead() || ADDRESSBUS[15].digitalRead()) {
+    digitalWrite(memCE, LOW);
+  } else {
+    digitalWrite(memCE, HIGH);
+  }
 }
 
 void readMemLocation()
