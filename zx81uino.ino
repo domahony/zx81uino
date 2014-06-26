@@ -161,34 +161,44 @@ void writePinState()
   Serial.println("");  
 }
 
-void tick(int *data, int *addr)
+void runToFetch(int *data, int *addr)
 {
+  
+  while (1) {
+   bool prevM1 = M1.digitalRead();
+   bool prevMREQ = MREQ.digitalRead();
 
- bool prevM1 = M1.digitalRead();
- bool prevMREQ = MREQ.digitalRead();
- 
- digitalWrite(clockPin, HIGH);
- LED.digitalWrite(HIGH);
- enableMemChip();
- delay(100);
- 
- if (!prevM1 && !prevMREQ && M1.digitalRead() && MREQ.digitalRead()) {
-   Serial.println("Data is the current opcode");
- }
- 
- *data = readBus(DATABUS, 8);
- *addr = readBus(ADDRESSBUS, 16);
- writePinState();
- writeBusState();
- digitalWrite(clockPin, LOW);
- writePinState();
- writeBusState();
- LED.digitalWrite(LOW);
- 
- 
- enableMemChip();
- delay(100);
+  *data = readBus(DATABUS, 8);
+  *addr = readBus(ADDRESSBUS, 16);   
+  
+   tick();
+  
+   if (!prevM1 && !prevMREQ && M1.digitalRead() && MREQ.digitalRead()) {
+    return;
+   }
+  
+  }
+  
+}
 
+void tick()
+{
+  
+  digitalWrite(clockPin, LOW);
+  LED.digitalWrite(HIGH);
+  enableMemChip();
+  delay(100);
+   
+  writePinState();
+  writeBusState();
+  digitalWrite(clockPin, HIGH);
+  writePinState();
+  writeBusState();
+  LED.digitalWrite(LOW);
+   
+  enableMemChip();
+  delay(100);
+  
 }
 
 void memRead(int addr)
@@ -217,15 +227,14 @@ void memRead(int addr)
 
 void reset()
 {
-  int data, addr;
   RESET.digitalWrite(LOW);
-  tick(&data, &addr);
-  tick(&data, &addr);
-  tick(&data, &addr);
-  tick(&data, &addr);
-  tick(&data, &addr);
-  tick(&data, &addr);
-  tick(&data, &addr);
+  tick();
+  tick();
+  tick();
+  tick();
+  tick();
+  tick();
+  tick();
   RESET.digitalWrite(HIGH);  
 }
 
@@ -266,7 +275,7 @@ void serialEvent() {
   switch (cmd) {
   case 'c':
     Serial.println("Executing Clock");
-    tick(&data, &addr);
+    tick();
     break;
   case 'r':
     reset();
@@ -283,30 +292,10 @@ void serialEvent() {
   }
 }
 
-int readNextOpCode()
+void readNextOpCode()
 {
-    int op, addr;
-    findNextOpCode(&op, &addr);
-    Serial.print("Found OP: "); Serial.print(op, HEX); Serial.print(" at "); Serial.println(addr, HEX);
-  
-}
-
-int findNextOpCode(int *cmd, int* addr)
-{
-  int c, a;
-  while (1) {
-    if (!M1.digitalRead()) { 
-      while (1) {
-         if (!MREQ.digitalRead()) {
-           *addr = a;
-           *cmd = c;  
-         }
-         tick(&c, &a);
-        if (M1.digitalRead()) {
-         return 1;       
-        }
-      }
-    }
-    tick(&c, &a);
-  }
+  int data, addr;
+  runToFetch(&data, &addr);
+  Serial.print("OP: "); Serial.println(data, HEX);
+  Serial.print("ADDRESS: "); Serial.println(addr, HEX);
 }
