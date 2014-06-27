@@ -187,17 +187,17 @@ void tick()
   digitalWrite(clockPin, LOW);
   LED.digitalWrite(HIGH);
   enableMemChip();
-  delay(100);
+  delayMicroseconds(1);
    
-  writePinState();
-  writeBusState();
+  //writePinState();
+  //writeBusState();
   digitalWrite(clockPin, HIGH);
-  writePinState();
-  writeBusState();
+  //writePinState();
+  //writeBusState();
   LED.digitalWrite(LOW);
    
   enableMemChip();
-  delay(100);
+  //delayMicroseconds(1);
   
 }
 
@@ -252,7 +252,6 @@ void readMemLocation()
 {
   char buf[5];
   
-  
   Serial.setTimeout(60 * 1000);
   int nread = Serial.readBytesUntil('\n', buf, 5);
   buf[nread] = 0;
@@ -263,6 +262,47 @@ void readMemLocation()
   
   Serial.println(n, HEX);
 }
+
+void runToLine()
+{
+  char buf[5];
+  
+  Serial.setTimeout(60 * 1000);
+  int nread = Serial.readBytesUntil('\n', buf, 5);
+  buf[nread] = 0;
+  
+  String hex = String("0x") + String(buf);
+
+  Serial.println(hex);
+
+  char bufStr[hex.length() + 1];
+  
+  hex.toCharArray(bufStr, hex.length() + 1);
+  bufStr[hex.length()] = 0;
+  
+  Serial.println(bufStr);
+  
+  int n = strtol(bufStr, 0, 0);
+  
+  Serial.print("Running to Line: ");
+  Serial.println(n);
+    
+  int addr, data;
+  runToFetch(&data, &addr);
+  
+  while (1) {
+    if (addr == n) {
+      break;
+    }
+
+    runToFetch(&data, &addr);
+  }
+
+    writeBusState();
+    writePinState();    
+  
+}
+
     
 void serialEvent() {
 
@@ -286,6 +326,8 @@ void serialEvent() {
   case 'f':
     readNextOpCode();
     break;
+  case 'l':
+    runToLine();
   default:
     Serial.print("Ignored "); Serial.println(cmd);
     break;
