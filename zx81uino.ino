@@ -54,7 +54,6 @@ MPin ADDRESSBUS[16] = {
   MPin(&mcp2, 13),  
 };
 
-MPin M1(&mcp1, 9);
 MPin RESET(&mcp1, 8);
 MPin WR(&mcp1, 10);
 MPin RD(&mcp1, 11);
@@ -63,14 +62,13 @@ MPin MREQ(&mcp1, 13);
 MPin IORQ(&mcp1, 14);
 MPin LED(&mcp1, 15);
 
-int clockPin = 2;
+int M1 = 2;
 int cePin = 6;
 int oePin = 8; 
 int memCE = 12;
+int clockCE = 4;
 
-int tick_count = 0;
-boolean show_addr = false;
-boolean clockVal = false;
+volatile boolean m1_int = false;
 
 void setup()
 {
@@ -83,9 +81,9 @@ void setup()
   setBusMode(DATABUS, 8, INPUT);  
   
   pinMode(memCE, OUTPUT);
-  pinMode(clockPin, OUTPUT);
+  pinMode(clockCE, OUTPUT);
+  pinMode(M1, INPUT);
   
-  M1.pinMode(INPUT);
   RESET.pinMode(OUTPUT);
   WR.pinMode(INPUT);
   RD.pinMode(INPUT);
@@ -98,33 +96,27 @@ void setup()
   NMI.digitalWrite(HIGH);
   
   digitalWrite(memCE, HIGH);
-  
+ 
+  digitalWrite(clockCE, LOW);
+  attachInterrupt(0, m1isr, RISING);
+  digitalWrite(clockCE, HIGH);
   reset();
+}
+
+void m1isr()
+{
+  digitalWrite(clockCE, LOW);
+  m1_int = true;
+
 }
 
 void loop()  
 {
-	tick2();
-
-        if (!(++tick_count % 10000)) {
-          show_addr = true;
-        }
-
-        if (!M1.digitalRead()) {
-          int addr = readBus(ADDRESSBUS, 16);
-     
-          if (addr == 0x3d5) {
-            delay(30000); 
-            Serial.println("YEAH!!!");
-          }
-        } else if (show_addr && !MREQ.digitalRead() && !WR.digitalRead()) {        
-          int addr = readBus(ADDRESSBUS, 16); 
-          Serial.println(addr, HEX);
-          show_addr = false;
-        }
-        
-
-        //writeBusState();
+  if (m1_int) {
+    writeBusState();
+    m1_int = false;
+    digitalWrite(clockCE, HIGH);
+  }
 }
 
 void setBusMode(struct MPin *a, int n, int mode)
@@ -177,62 +169,11 @@ void pinVal(MPin* p, String s)
 
 void writePinState()
 {
-  pinVal(&M1, "M1");
   pinVal(&WR, "WR");
   pinVal(&RD, "RD");
   pinVal(&MREQ, "MREQ");
   pinVal(&IORQ, "IORQ");
   Serial.println("");  
-}
-
-void runToFetch(int *data, int *addr)
-{
-  
-  while (1) {
-   bool prevM1 = M1.digitalRead();
-   bool prevMREQ = MREQ.digitalRead();
-
-  *data = readBus(DATABUS, 8);
-  *addr = readBus(ADDRESSBUS, 16);   
-  
-   tick();
-  
-   if (!prevM1 && !prevMREQ && M1.digitalRead() && MREQ.digitalRead()) {
-    return;
-   }
-  
-  }
-  
-}
-
-void tick2()
-{
-  
-  digitalWrite(clockPin, clockVal);
-  clockVal = !clockVal;
-  LED.digitalWrite(clockVal);
-  enableMemChip();  
-}
-
-
-void tick()
-{
-  
-  digitalWrite(clockPin, LOW);
-  LED.digitalWrite(HIGH);
-  enableMemChip();
-  //delayMicroseconds(1);
-   
-  //writePinState();
-  //writeBusState();
-  digitalWrite(clockPin, HIGH);
-  //writePinState();
-  //writeBusState();
-  LED.digitalWrite(LOW);
-   
-  enableMemChip();
-  //delayMicroseconds(1);
-  
 }
 
 void memRead(int addr)
@@ -262,13 +203,7 @@ void memRead(int addr)
 void reset()
 {
   RESET.digitalWrite(LOW);
-  tick();
-  tick();
-  tick();
-  tick();
-  tick();
-  tick();
-  tick();
+  delay(100);
   RESET.digitalWrite(HIGH);  
 }
 
@@ -297,46 +232,6 @@ void readMemLocation()
   Serial.println(n, HEX);
 }
 
-void runToLine()
-{
-  char buf[5];
-  
-  Serial.setTimeout(60 * 1000);
-  int nread = Serial.readBytesUntil('\n', buf, 5);
-  buf[nread] = 0;
-  
-  String hex = String("0x") + String(buf);
-
-  Serial.println(hex);
-
-  char bufStr[hex.length() + 1];
-  
-  hex.toCharArray(bufStr, hex.length() + 1);
-  bufStr[hex.length()] = 0;
-  
-  Serial.println(bufStr);
-  
-  int n = strtol(bufStr, 0, 0);
-  
-  Serial.print("Running to Line: ");
-  Serial.println(n);
-    
-  int addr, data;
-  runToFetch(&data, &addr);
-  
-  while (1) {
-    if (addr == n) {
-      break;
-    }
-
-    runToFetch(&data, &addr);
-  }
-
-    writeBusState();
-    writePinState();    
-  
-}
-
     
 void serialEvent() {
 
@@ -348,8 +243,6 @@ void serialEvent() {
   int data, addr;
   switch (cmd) {
   case 'c':
-    Serial.println("Executing Clock");
-    tick();
     break;
   case 'r':
     reset();
@@ -357,22 +250,10 @@ void serialEvent() {
   case 'n':
     readMemLocation();
     break;
-  case 'f':
-    readNextOpCode();
-    delay(30000);
-    break;
-  case 'l':
-    runToLine();
   default:
     Serial.print("Ignored "); Serial.println(cmd);
     break;
   }
 }
 
-void readNextOpCode()
-{
-  int data, addr;
-  runToFetch(&data, &addr);
-  Serial.print("OP: "); Serial.println(data, HEX);
-  Serial.print("ADDRESS: "); Serial.println(addr, HEX);
-}
+
