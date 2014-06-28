@@ -68,6 +68,10 @@ int cePin = 6;
 int oePin = 8; 
 int memCE = 12;
 
+int tick_count = 0;
+boolean show_addr = false;
+boolean clockVal = false;
+
 void setup()
 {
   Serial.begin(9600);
@@ -100,7 +104,27 @@ void setup()
 
 void loop()  
 {
-	delayMicroseconds(4);
+	tick2();
+
+        if (!(++tick_count % 10000)) {
+          show_addr = true;
+        }
+
+        if (!M1.digitalRead()) {
+          int addr = readBus(ADDRESSBUS, 16);
+     
+          if (addr == 0x3d5) {
+            delay(30000); 
+            Serial.println("YEAH!!!");
+          }
+        } else if (show_addr && !MREQ.digitalRead() && !WR.digitalRead()) {        
+          int addr = readBus(ADDRESSBUS, 16); 
+          Serial.println(addr, HEX);
+          show_addr = false;
+        }
+        
+
+        //writeBusState();
 }
 
 void setBusMode(struct MPin *a, int n, int mode)
@@ -181,13 +205,23 @@ void runToFetch(int *data, int *addr)
   
 }
 
+void tick2()
+{
+  
+  digitalWrite(clockPin, clockVal);
+  clockVal = !clockVal;
+  LED.digitalWrite(clockVal);
+  enableMemChip();  
+}
+
+
 void tick()
 {
   
   digitalWrite(clockPin, LOW);
   LED.digitalWrite(HIGH);
   enableMemChip();
-  delayMicroseconds(1);
+  //delayMicroseconds(1);
    
   //writePinState();
   //writeBusState();
@@ -325,6 +359,7 @@ void serialEvent() {
     break;
   case 'f':
     readNextOpCode();
+    delay(30000);
     break;
   case 'l':
     runToLine();
