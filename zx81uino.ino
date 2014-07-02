@@ -67,6 +67,7 @@ int cePin = 6;
 int oePin = 8; 
 int memCE = 12;
 int clockCE = 4;
+int clockPin = 10;
 
 volatile boolean m1_int = false;
 
@@ -82,6 +83,7 @@ void setup()
   
   pinMode(memCE, OUTPUT);
   pinMode(clockCE, OUTPUT);
+  pinMode(clockPin, INPUT);
   pinMode(M1, INPUT);
   
   RESET.pinMode(OUTPUT);
@@ -96,10 +98,7 @@ void setup()
   NMI.digitalWrite(HIGH);
   
   digitalWrite(memCE, HIGH);
- 
-  digitalWrite(clockCE, LOW);
-  attachInterrupt(0, m1isr, RISING);
-  digitalWrite(clockCE, HIGH);
+
   reset();
 }
 
@@ -110,13 +109,57 @@ void m1isr()
 
 }
 
-void loop()  
+void pulse()
 {
-  if (m1_int) {
-    writeBusState();
-    m1_int = false;
-    digitalWrite(clockCE, HIGH);
-  }
+  digitalWrite(clockCE, HIGH);
+  delayMicroseconds(1);
+  digitalWrite(clockCE, LOW);
+  writeBusState();
+  writePinState();
+}
+
+void pulse2()
+{
+  pinMode(clockPin, OUTPUT);
+  digitalWrite(clockPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(clockPin, LOW);  
+  pinMode(clockPin, INPUT);
+  writeBusState();
+  writePinState();
+}
+
+void reset()
+{
+  digitalWrite(clockCE, LOW);
+  RESET.digitalWrite(LOW);
+//  pulse();
+//  pulse();
+//  pulse();
+//  pulse();
+//  pulse();
+//  pulse();
+//  pulse();
+//  pulse();
+//  pulse();
+  delayMicroseconds(1000);
+  digitalWrite(clockCE, HIGH);
+  delayMicroseconds(5000);
+  digitalWrite(clockCE, LOW);
+  RESET.digitalWrite(HIGH);
+  writeBusState();
+  writePinState();
+
+}
+
+void loop()
+{
+//  digitalWrite(clockCE, HIGH);
+//  delayMicroseconds(1);
+//  digitalWrite(clockCE, LOW);
+//  writeBusState();
+//  writePinState();
+  
 }
 
 void setBusMode(struct MPin *a, int n, int mode)
@@ -169,6 +212,7 @@ void pinVal(MPin* p, String s)
 
 void writePinState()
 {
+  Serial.print("M1"); Serial.print(": "); Serial.print(digitalRead(M1)); Serial.print(" ");  
   pinVal(&WR, "WR");
   pinVal(&RD, "RD");
   pinVal(&MREQ, "MREQ");
@@ -199,14 +243,6 @@ void memRead(int addr)
     ADDRESSBUS[i].mcp->pinMode(ADDRESSBUS[i].pin, INPUT);
   }    
 }
-
-void reset()
-{
-  RESET.digitalWrite(LOW);
-  delay(100);
-  RESET.digitalWrite(HIGH);  
-}
-
 
 void enableMemChip()
 {
@@ -243,6 +279,7 @@ void serialEvent() {
   int data, addr;
   switch (cmd) {
   case 'c':
+    pulse();
     break;
   case 'r':
     reset();
